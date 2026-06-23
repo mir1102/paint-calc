@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-title" content="도료계산기">
+
+    <!-- PWA: 매니페스트 & 아이콘 -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+    <title>도료 배합 계산기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.1/dist/umd/lucide.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style type="text/tailwindcss">
+        /* 1. iOS 안전 영역 및 스크롤 튕김 방지 */
+        :root {
+            --sat: env(safe-area-inset-top);
+            --sab: env(safe-area-inset-bottom);
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* 전체 페이지 스크롤 막음 */
+            overscroll-behavior-y: none; /* iOS 튕김 방지 */
+            -webkit-touch-callout: none; /* 길게 누르기 메뉴 방지 */
+            user-select: none; /* 텍스트 선택 방지 */
+            -webkit-user-select: none;
+        }
+
+        body { 
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 2. 아이폰 입력창 확대 방지 (매우 중요) */
+        input[type="text"], input[type="number"] {
+            font-size: 16px !important; /* 16px 미만이면 아이폰이 강제 확대함 */
+            user-select: text; /* 입력창은 선택 가능하게 */
+            -webkit-user-select: text;
+        }
+
+        /* 숫자 입력 화살표 제거 */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        /* 3. 스크롤 영역 설정 */
+        .scroll-container {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* 부드러운 스크롤 */
+            padding-bottom: calc(20px + var(--sab));
+        }
+
+        /* 탭 스타일 */
+        .tab-btn.active { border-bottom: 3px solid #2563eb; color: #2563eb; font-weight: 700; background-color: #eff6ff; }
+        .tab-btn.share-active { border-bottom: 3px solid #9333ea; color: #9333ea; font-weight: 700; background-color: #f3e8ff; }
+        
+        .mode-switch { position: relative; display: flex; background-color: #e5e7eb; border-radius: 0.5rem; padding: 0.25rem; margin-bottom: 1.25rem; }
+        .mode-btn { flex: 1; text-align: center; padding: 0.5rem; font-size: 0.875rem; font-weight: 500; z-index: 10; transition: all 0.2s; border-radius: 0.375rem; color: #4b5563; }
+        .mode-btn.active { background-color: white; color: #2563eb; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .mode-btn.correction-active { background-color: white; color: #dc2626; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        /* 커스텀 라디오 */
+        .custom-radio-base:checked + div { background-color: #dbeafe; border-color: #3b82f6; color: #1e40af; font-weight: 700; }
+        .custom-radio-add:checked + div { background-color: #fce7f3; border-color: #ec4899; color: #9d174d; font-weight: 700; }
+        .custom-radio-base-corr:checked + div { background-color: #dbeafe; border-color: #3b82f6; color: #1e40af; font-weight: 700; }
+        .custom-radio-add-corr:checked + div { background-color: #fee2e2; border-color: #ef4444; color: #991b1b; font-weight: 700; }
+
+        /* 계산기 버튼 스타일 */
+        .calc-btn { @apply active:scale-95 transition-transform rounded-2xl text-xl font-medium flex items-center justify-center h-16 shadow-sm select-none; cursor: pointer; }
+        .calc-num { background-color: #ffffff; color: #1f2937; border: 1px solid #e5e7eb; }
+        .calc-op { background-color: #dbeafe; color: #2563eb; border: 1px solid #bfdbfe; font-weight: 600; font-size: 1.5rem; }
+        .calc-eq { background-color: #2563eb; color: white; font-weight: 600; font-size: 1.5rem; }
+        .calc-top { background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
+        .calc-sci { background-color: #e5e7eb; color: #374151; border: 1px solid #d1d5db; font-size: 1.1rem; font-weight: 600; }
+        
+        .tab-text { font-size: 0.75rem; }
+        @media (min-width: 380px) { .tab-text { font-size: 0.875rem; } }
+        
+        /* 헤더 안전영역 처리 */
+        header { padding-top: var(--sat); }
+        * { -webkit-tap-highlight-color: transparent; }
+    </style>
+</head>
+<body>
+
+    <header class="bg-blue-600 text-white shadow-md flex-none z-50">
+        <div class="max-w-md mx-auto px-4 h-14 flex items-center justify-between">
+            <h1 class="text-lg font-bold flex items-center gap-2"><i data-lucide="calculator" class="w-5 h-5"></i>도료 배합 계산기</h1>
+            <button onclick="location.reload()" class="bg-blue-700 active:bg-blue-800 text-white px-3 py-1.5 rounded text-xs font-medium transition"><i data-lucide="rotate-ccw" class="w-4 h-4 inline mr-1"></i>초기화</button>
+        </div>
+    </header>
+
+    <div class="bg-white shadow-sm flex border-b border-gray-200 overflow-x-auto scrollbar-hide flex-none z-40">
+        <button onclick="switchTab('gloss')" id="tab-gloss" class="tab-btn active min-w-[20%] flex-1 py-4 tab-text text-gray-500 font-medium transition active:bg-gray-100 whitespace-nowrap">기본배합</button>
+        <button onclick="switchTab('individual')" id="tab-individual" class="tab-btn min-w-[20%] flex-1 py-4 tab-text text-gray-500 font-medium transition active:bg-gray-100 whitespace-nowrap">개별안료</button>
+        <button onclick="switchTab('ratio')" id="tab-ratio" class="tab-btn min-w-[20%] flex-1 py-4 tab-text text-gray-500 font-medium transition active:bg-gray-100 whitespace-nowrap">비율조색</button>
+        <button onclick="switchTab('share')" id="tab-share" class="tab-btn min-w-[20%] flex-1 py-4 tab-text text-gray-500 font-medium transition active:bg-gray-100 whitespace-nowrap text-purple-700 bg-purple-50/50">차지율</button>
+        <button onclick="switchTab('general')" id="tab-general" class="tab-btn min-w-[20%] flex-1 py-4 tab-text text-gray-500 font-medium transition active:bg-gray-100 whitespace-nowrap">계산기</button>
+    </div>
+
+    <main class="scroll-container max-w-md mx-auto w-full">
+        <div class="p-4 space-y-4">
+            <div id="content-gloss" class="space-y-4 animate-fade-in">
+                <div class="flex justify-between items-center px-1">
+                    <h2 class="text-lg font-bold text-gray-800">기본 배합 (단일 첨가)</h2>
+                </div>
+                <div class="mode-switch">
+                    <button onclick="switchMode('gloss', 'new')" id="btn-gloss-new" class="mode-btn active">신규 배합</button>
+                    <button onclick="switchMode('gloss', 'corr')" id="btn-gloss-corr" class="mode-btn">배합 수정</button>
+                </div>
+                <div id="gloss-new" class="space-y-5">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
+                        <div><h3 class="font-semibold text-blue-800 mb-2 text-sm flex items-center gap-1"><i data-lucide="box" class="w-4 h-4"></i>기준 재료 (Base)</h3>
+                            <div class="grid grid-cols-3 gap-2"><label class="cursor-pointer text-center"><input type="radio" name="baseType" value="유광" class="hidden custom-radio-base" onchange="updateGlossLabel('new')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">유광</div></label><label class="cursor-pointer text-center"><input type="radio" name="baseType" value="무광" class="hidden custom-radio-base" onchange="updateGlossLabel('new')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">무광</div></label><label class="cursor-pointer text-center"><input type="radio" name="baseType" value="주제" class="hidden custom-radio-base" checked onchange="updateGlossLabel('new')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">주제</div></label></div>
+                        </div>
+                        <div class="border-t border-gray-100"></div>
+                        <div><h3 class="font-semibold text-pink-800 mb-2 text-sm flex items-center gap-1"><i data-lucide="flask-conical" class="w-4 h-4"></i>첨가할 재료</h3>
+                            <div class="grid grid-cols-3 sm:grid-cols-5 gap-2"><label class="cursor-pointer text-center"><input type="radio" name="addType" value="유광" class="hidden custom-radio-add" onchange="updateGlossLabel('new')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">유광</div></label><label class="cursor-pointer text-center"><input type="radio" name="addType" value="무광" class="hidden custom-radio-add" checked onchange="updateGlossLabel('new')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">무광</div></label><label class="cursor-pointer text-center"><input type="radio" name="addType" value="신나" class="hidden custom-radio-add" onchange="updateGlossLabel('new')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">신나</div></label><label class="cursor-pointer text-center"><input type="radio" name="addType" value="안료" class="hidden custom-radio-add" onchange="updateGlossLabel('new')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">안료</div></label><label class="cursor-pointer text-center"><input type="radio" name="addType" value="첨가제" class="hidden custom-radio-add" onchange="updateGlossLabel('new')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">첨가제</div></label></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-5">
+                        <div><label class="block text-sm font-bold text-gray-600 mb-1.5" id="label-base-weight">기준 도료 무게</label><div class="relative"><input type="number" id="gloss-base" inputmode="decimal" placeholder="10" class="w-full p-4 pr-12 bg-gray-50 border border-gray-200 rounded-xl outline-none font-semibold transition focus:ring-2 focus:ring-blue-200 focus:border-blue-500"><span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">kg</span></div></div>
+                        <div><label class="block text-sm font-bold text-gray-600 mb-1.5" id="gloss-percent-label">첨가할 무광 비율</label><div class="relative"><input type="number" id="gloss-percent" inputmode="decimal" placeholder="5" class="w-full p-4 pr-12 bg-gray-50 border border-gray-200 rounded-xl outline-none font-semibold transition focus:ring-2 focus:ring-blue-200 focus:border-blue-500"><span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">%</span></div></div>
+                    </div>
+                    <button onclick="calculateGloss()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-4 rounded-xl shadow-lg transition text-lg">계산하기</button>
+                    <div id="result-gloss" class="hidden mt-4 p-5 bg-slate-800 text-white rounded-xl shadow-lg animate-slide-up"><div class="flex justify-between items-start mb-4 pb-4 border-b border-slate-600"><span class="text-slate-300 text-sm mt-1" id="label-result-add">투입 무광량</span><div class="text-right"><span class="text-3xl font-bold text-yellow-400 block leading-none"><span id="gloss-result-g">0</span></span><span class="text-sm text-yellow-400/70 font-normal">g</span></div></div><div class="flex justify-between items-center"><span class="text-slate-400 text-xs">총 중량 합계</span><span class="text-base font-medium text-white"><span id="gloss-total-kg">0</span> kg</span></div></div>
+                </div>
+                <div id="gloss-corr" class="hidden space-y-5">
+                    <div class="bg-red-50 p-4 rounded-xl border border-red-100 flex items-start gap-3"><i data-lucide="alert-circle" class="w-5 h-5 text-red-500 mt-0.5 shrink-0"></i><p class="text-sm text-red-800">이미 섞인 도료의 농도를 수정합니다.</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
+                        <div><h3 class="font-semibold text-blue-800 mb-2 text-sm flex items-center gap-1"><i data-lucide="box" class="w-4 h-4"></i>기준 재료 (Base)</h3>
+                            <div class="grid grid-cols-3 gap-2"><label class="cursor-pointer text-center"><input type="radio" name="baseTypeCorr" value="유광" class="hidden custom-radio-base-corr" onchange="updateGlossLabel('corr')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">유광</div></label><label class="cursor-pointer text-center"><input type="radio" name="baseTypeCorr" value="무광" class="hidden custom-radio-base-corr" onchange="updateGlossLabel('corr')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">무광</div></label><label class="cursor-pointer text-center"><input type="radio" name="baseTypeCorr" value="주제" class="hidden custom-radio-base-corr" checked onchange="updateGlossLabel('corr')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">주제</div></label></div>
+                        </div>
+                        <div class="border-t border-gray-100"></div>
+                        <div><h3 class="font-semibold text-red-800 mb-2 text-sm flex items-center gap-1"><i data-lucide="settings-2" class="w-4 h-4"></i>조절할 재료</h3>
+                            <div class="grid grid-cols-3 sm:grid-cols-5 gap-2"><label class="cursor-pointer text-center"><input type="radio" name="addTypeCorr" value="유광" class="hidden custom-radio-add-corr" onchange="updateGlossLabel('corr')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">유광</div></label><label class="cursor-pointer text-center"><input type="radio" name="addTypeCorr" value="무광" class="hidden custom-radio-add-corr" checked onchange="updateGlossLabel('corr')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">무광</div></label><label class="cursor-pointer text-center"><input type="radio" name="addTypeCorr" value="신나" class="hidden custom-radio-add-corr" onchange="updateGlossLabel('corr')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">신나</div></label><label class="cursor-pointer text-center"><input type="radio" name="addTypeCorr" value="안료" class="hidden custom-radio-add-corr" onchange="updateGlossLabel('corr')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">안료</div></label><label class="cursor-pointer text-center"><input type="radio" name="addTypeCorr" value="첨가제" class="hidden custom-radio-add-corr" onchange="updateGlossLabel('corr')"><div class="border border-gray-200 rounded-lg py-2 text-xs text-gray-600 bg-white transition">첨가제</div></label></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-5">
+                        <div class="grid grid-cols-2 gap-4"><div><label class="block text-xs font-bold text-gray-500 mb-1">현재 총 무게</label><div class="relative"><input type="number" id="gc-total-kg" inputmode="decimal" placeholder="10" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none font-semibold"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">kg</span></div></div><div><label class="block text-xs font-bold text-gray-500 mb-1" id="gc-current-label">현재 무광 비율</label><div class="relative"><input type="number" id="gc-current-pct" inputmode="decimal" placeholder="5" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg outline-none font-semibold"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span></div></div></div>
+                        <div><label class="block text-sm font-bold text-red-600 mb-1.5" id="gc-target-label">목표 무광 비율</label><div class="relative"><input type="number" id="gc-target-pct" inputmode="decimal" placeholder="10" class="w-full p-4 pr-12 bg-red-50 border border-red-200 rounded-xl outline-none text-xl font-semibold text-red-900 transition focus:ring-2 focus:ring-red-200"><span class="absolute right-4 top-1/2 -translate-y-1/2 text-red-400 font-medium">%</span></div></div>
+                    </div>
+                    <button onclick="calculateGlossCorrection()" class="w-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold py-4 rounded-xl shadow-lg transition text-lg">수정 처방받기</button>
+                    <div id="result-gloss-corr" class="hidden mt-4 bg-white border-2 border-green-500 p-5 rounded-xl shadow-lg animate-slide-up relative">
+                        <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">처방전</div>
+                        <div class="text-center mt-2"><h2 class="text-2xl font-bold text-gray-800 mb-2"><span id="gc-res-name" class="text-green-600">무광</span>를 <span class="text-3xl text-red-600 underline decoration-red-200 underline-offset-4"><span id="gc-res-amount">0</span></span><span class="text-sm font-normal text-gray-600 block mt-1">g 더 넣으세요</span></h2><p class="text-xs text-gray-400 mt-2">수정 후 예상 총 중량: <span id="gc-res-total">0</span> kg</p></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="content-individual" class="hidden space-y-4 animate-fade-in">
+                <div class="flex justify-between items-center px-1">
+                    <h2 class="text-lg font-bold text-gray-800">개별 안료</h2>
+                </div>
+                <div class="mode-switch">
+                    <button onclick="switchMode('individual', 'new')" id="btn-individual-new" class="mode-btn active">신규 배합</button>
+                    <button onclick="switchMode('individual', 'corr')" id="btn-individual-corr" class="mode-btn">배합 수정</button>
+                </div>
+
+                <div id="individual-new" class="space-y-4">
+                    <div class="bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex p-1">
+                        <label class="flex-1 cursor-pointer"><input type="radio" name="indivType" value="basic" checked class="hidden peer" onchange="toggleIndivType()"><div class="text-center py-2 rounded-lg text-sm font-medium text-gray-500 peer-checked:bg-blue-50 peer-checked:text-blue-600 transition">기본 (주제만)</div></label>
+                        <label class="flex-1 cursor-pointer"><input type="radio" name="indivType" value="dilution" class="hidden peer" onchange="toggleIndivType()"><div class="text-center py-2 rounded-lg text-sm font-medium text-gray-500 peer-checked:bg-blue-50 peer-checked:text-blue-600 transition">희석 (주제+신나)</div></label>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3">
+                        <div><label class="block text-sm font-bold text-gray-600 mb-1.5">주제(Base) 무게</label><div class="relative"><input type="number" id="indiv-base" inputmode="decimal" placeholder="5" class="w-full p-4 pr-12 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xl font-semibold transition focus:ring-2 focus:ring-blue-200 focus:border-blue-500"><span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">kg</span></div></div>
+                        <div id="indiv-dilution-input" class="hidden animate-fade-in bg-blue-50 p-3 rounded-lg border border-blue-100">
+                            <label class="block text-xs font-bold text-blue-800 mb-1">희석 비율 (주제 1 : 신나 X)</label>
+                            <div class="flex items-center gap-2"><span class="text-gray-500 font-bold">1 :</span><input type="number" id="indiv-thinner-ratio" inputmode="decimal" placeholder="1.5" class="flex-1 p-2 border border-blue-200 rounded-lg outline-none text-lg font-semibold text-blue-900 text-center"></div>
+                            <p class="text-[10px] text-blue-600 mt-1">* 안료는 (주제+신나) 총 무게 기준으로 계산됩니다.</p>
+                        </div>
+                    </div>
+                    <div id="pigment-list" class="space-y-3"><div class="pigment-row bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex gap-3 items-center"><select class="pigment-name flex-1 p-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-blue-500 outline-none text-base"><option value="" disabled selected>안료 선택</option><option value="투명안료 오렌지">투명안료 오렌지</option><option value="투명안료 적색">투명안료 적색</option><option value="투명안료 황색">투명안료 황색</option><option value="투명안료 청색">투명안료 청색</option><option value="투명안료 보라색">투명안료 보라색</option><option value="투명안료 녹색">투명안료 녹색</option><option value="투명안료 핑크색">투명안료 핑크색</option><option value="투명안료 흑색">투명안료 흑색</option><option value="나노안료 흑색">나노안료 흑색</option><option value="안료백색">안료백색</option></select><div class="relative w-28"><input type="number" inputmode="decimal" placeholder="%" class="pigment-percent w-full p-3 pr-8 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-blue-500 outline-none text-lg font-medium text-right"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span></div><button onclick="removeRow(this)" class="w-12 h-12 flex items-center justify-center text-red-400 active:bg-red-50 rounded-lg transition"><i data-lucide="trash-2" class="w-5 h-5"></i></button></div></div>
+                    <button onclick="addPigmentRow()" class="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-gray-50 transition flex justify-center items-center gap-2 font-medium"><i data-lucide="plus" class="w-5 h-5"></i> 안료 추가</button>
+                    <button onclick="calculateIndividual()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-4 rounded-xl shadow-lg transition text-lg mt-2">계산하기</button>
+                    <div id="result-indiv" class="hidden mt-4 bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 animate-slide-up">
+                        <div id="indiv-mix-info" class="hidden p-4 bg-blue-50 border-b border-blue-100 text-sm text-blue-900 space-y-1"><div class="flex justify-between"><span>주제 무게:</span> <span class="font-bold"><span id="res-base-kg">0</span></span></div><div class="flex justify-between text-blue-700"><span>+ 신나 무게:</span> <span class="font-bold"><span id="res-thinner-kg">0</span></span></div><div class="flex justify-between border-t border-blue-200 pt-1 mt-1 font-bold text-base"><span>배합 총 중량:</span> <span><span id="res-mix-total-kg">0</span></span></div></div>
+                        <div class="p-4 bg-slate-800 text-white flex justify-between items-center"><span class="font-medium">안료별 투입량</span></div><div id="indiv-result-list" class="divide-y divide-gray-100"></div><div class="p-4 bg-gray-50 flex justify-between items-center"><span class="text-sm font-bold text-gray-900">최종 총 무게 (안료 포함)</span><span class="text-lg font-bold text-blue-700"><span id="indiv-final-total-kg">0</span></span></div>
+                    </div>
+                </div>
+
+                <div id="individual-corr" class="hidden space-y-5">
+                    <div class="bg-red-50 p-4 rounded-xl border border-red-100 flex items-start gap-3">
+                        <i data-lucide="flask-conical" class="w-5 h-5 text-red-500 mt-0.5 shrink-0"></i>
+                        <p class="text-sm text-red-800">현재와 목표를 입력하면 부족한 성분을 찾습니다.</p>
+                    </div>
+                    
+                    <div class="bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex p-1 mb-2">
+                        <label class="flex-1 cursor-pointer"><input type="radio" name="indivTypeCorr" value="basic" checked class="hidden peer" onchange="toggleIndivTypeCorr()"><div class="text-center py-2 rounded-lg text-sm font-medium text-gray-500 peer-checked:bg-blue-50 peer-checked:text-blue-600 transition">기본 (주제만)</div></label>
+                        <label class="flex-1 cursor-pointer"><input type="radio" name="indivTypeCorr" value="dilution" class="hidden peer" onchange="toggleIndivTypeCorr()"><div class="text-center py-2 rounded-lg text-sm font-medium text-gray-500 peer-checked:bg-blue-50 peer-checked:text-blue-600 transition">희석 (주제+신나)</div></label>
+                    </div>
+
+                    <div class="space-y-6">
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
+                            <div class="flex items-center gap-2 mb-1 pb-2 border-b border-gray-100">
+                                <span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded">Step 1</span>
+                                <span class="text-sm font-bold text-gray-700">현재 배합 상태 (Current)</span>
+                            </div>
+                            <div><label class="block text-xs font-bold text-blue-600 mb-1">현재 남은 총량 (통 무게 제외)</label><div class="relative"><input type="number" id="ic-corr-total-remain" inputmode="decimal" placeholder="예: 7.2" class="w-full p-3 bg-blue-50 border border-blue-200 rounded-lg outline-none font-bold text-blue-900 text-lg"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-blue-400">kg</span></div></div>
+                            
+                            <div id="ic-corr-dilution-input" class="hidden">
+                                <label class="block text-xs font-bold text-gray-500 mb-1">현재 신나 비율</label>
+                                <div class="relative flex items-center"><span class="absolute left-3 text-xs text-gray-400">주제 1 :</span><input type="number" id="ic-corr-thinner-ratio-curr" inputmode="decimal" placeholder="1.5" class="w-full p-2.5 pl-14 bg-gray-50 border border-gray-200 rounded-lg outline-none font-semibold text-sm"></div>
+                            </div>
+
+                            <div class="space-y-2"><label class="block text-xs font-bold text-gray-500">현재 안료 함유량 (%)</label><div id="ic-curr-pigment-list" class="space-y-2"><div class="curr-pig-row flex gap-2 items-center"><select class="pigment-name w-1/2 p-2 bg-gray-50 border border-gray-200 rounded text-sm"><option value="" disabled selected>안료 선택</option><option value="투명안료 오렌지">투명안료 오렌지</option><option value="투명안료 적색">투명안료 적색</option><option value="투명안료 황색">투명안료 황색</option><option value="투명안료 청색">투명안료 청색</option><option value="투명안료 보라색">투명안료 보라색</option><option value="투명안료 녹색">투명안료 녹색</option><option value="투명안료 핑크색">투명안료 핑크색</option><option value="투명안료 흑색">투명안료 흑색</option><option value="나노안료 흑색">나노안료 흑색</option><option value="안료백색">안료백색</option></select><div class="relative flex-1"><input type="number" inputmode="decimal" placeholder="%" class="curr-pig-val w-full p-2 bg-gray-50 border border-gray-200 rounded text-sm text-right"></div><button onclick="removeRow(this)" class="text-gray-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div><button onclick="addIndivCorrRow('current')" class="w-full py-2 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:text-blue-500 flex justify-center items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> 안료 추가</button></div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 space-y-3">
+                            <div class="flex items-center gap-2 mb-1 pb-2 border-b border-gray-100"><span class="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded">Step 2</span><span class="text-sm font-bold text-gray-700">목표 배합 설정 (Target)</span></div>
+                            
+                            <div id="ic-target-dilution-input" class="hidden">
+                                <label class="block text-xs font-bold text-red-600 mb-1">목표 신나 비율</label>
+                                <div class="relative flex items-center"><span class="absolute left-3 text-xs text-red-300">1 :</span><input type="number" id="ic-corr-thinner-ratio-target" inputmode="decimal" placeholder="1.5" class="w-full p-2.5 pl-10 bg-red-50 border border-red-200 rounded-lg outline-none font-semibold text-sm text-red-900"></div>
+                            </div>
+
+                            <div class="space-y-2"><label class="block text-xs font-bold text-red-600">목표 안료 함유량 (%)</label><div id="ic-target-pigment-list" class="space-y-2"><div class="target-pig-row flex gap-2 items-center"><select class="pigment-name w-1/2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-900"><option value="" disabled selected>안료 선택</option><option value="투명안료 오렌지">투명안료 오렌지</option><option value="투명안료 적색">투명안료 적색</option><option value="투명안료 황색">투명안료 황색</option><option value="투명안료 청색">투명안료 청색</option><option value="투명안료 보라색">투명안료 보라색</option><option value="투명안료 녹색">투명안료 녹색</option><option value="투명안료 핑크색">투명안료 핑크색</option><option value="투명안료 흑색">투명안료 흑색</option><option value="나노안료 흑색">나노안료 흑색</option><option value="안료백색">안료백색</option></select><div class="relative flex-1"><input type="number" inputmode="decimal" placeholder="%" class="target-pig-val w-full p-2 bg-red-50 border border-red-200 rounded text-sm text-right text-red-900 font-bold"></div><button onclick="removeRow(this)" class="text-gray-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div><button onclick="addIndivCorrRow('target')" class="w-full py-2 border border-dashed border-red-300 rounded-lg text-xs text-red-500 hover:bg-red-50 flex justify-center items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> 안료 추가</button></div>
+                        </div>
+                    </div>
+                    <button onclick="calculateAdvancedIndivCorrection()" class="w-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold py-4 rounded-xl shadow-lg transition text-lg flex justify-center items-center gap-2"><i data-lucide="flask-conical" class="w-5 h-5"></i> 수정 처방받기</button>
+                    <div id="result-indiv-corr" class="hidden mt-4 space-y-4 animate-slide-up">
+                        <div class="bg-slate-800 text-white p-4 rounded-xl shadow-lg">
+                            <h4 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1"><i data-lucide="search" class="w-3 h-3"></i> 현재 성분 분석 (추정)</h4>
+                            <div id="ic-adv-analysis-list" class="space-y-2 text-sm"></div>
+                        </div>
+                        <div class="bg-white border-2 border-green-500 p-5 rounded-xl shadow-lg relative">
+                            <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">최종 처방전</div>
+                            <div class="mt-3 space-y-3 divide-y divide-dashed divide-gray-200" id="ic-adv-prescription-list"></div>
+                             <div class="mt-4 pt-3 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500"><span>예상 최종 무게</span><span class="font-bold text-lg text-gray-800"><span id="ic-final-weight">0</span> kg</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="content-ratio" class="hidden space-y-4 animate-fade-in">
+                <div class="flex justify-between items-center px-1">
+                    <h2 class="text-lg font-bold text-gray-800">비율 조색</h2>
+                </div>
+                <div class="mode-switch"><button onclick="switchMode('ratio', 'new')" id="btn-ratio-new" class="mode-btn active">신규 배합</button><button onclick="switchMode('ratio', 'corr')" id="btn-ratio-corr" class="mode-btn">배합 수정</button></div>
+                <div id="ratio-new" class="space-y-4">
+                    <div class="bg-yellow-50 p-3 rounded-lg flex items-start gap-2 text-sm text-yellow-800 border border-yellow-100"><i data-lucide="lightbulb" class="w-4 h-4 mt-0.5 shrink-0"></i><p>비율(예: 3:1)과 전체 함유량(%)을 입력하세요.</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 grid grid-cols-2 gap-4"><div><label class="block text-sm font-bold text-gray-600 mb-1.5">기준 무게</label><div class="relative"><input type="number" id="ratio-base" inputmode="decimal" placeholder="7" class="w-full p-3 pr-8 bg-gray-50 border border-gray-200 rounded-lg outline-none text-lg font-semibold focus:ring-2 focus:ring-blue-200 focus:border-blue-500"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">kg</span></div></div><div><label class="block text-sm font-bold text-gray-600 mb-1.5">총 함유량</label><div class="relative"><input type="number" id="ratio-total-percent" inputmode="decimal" placeholder="1.5" class="w-full p-3 pr-8 bg-gray-50 border border-gray-200 rounded-lg outline-none text-lg font-semibold focus:ring-2 focus:ring-blue-200 focus:border-blue-500"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span></div></div></div>
+                    <div id="ratio-list" class="space-y-3"><div class="ratio-row bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex gap-3 items-center"><select class="ratio-name flex-1 p-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-blue-500 outline-none text-base"><option value="" disabled selected>안료 선택</option><option value="투명안료 오렌지">투명안료 오렌지</option><option value="투명안료 적색">투명안료 적색</option><option value="투명안료 황색">투명안료 황색</option><option value="투명안료 청색">투명안료 청색</option><option value="투명안료 보라색">투명안료 보라색</option><option value="투명안료 녹색">투명안료 녹색</option><option value="투명안료 핑크색">투명안료 핑크색</option><option value="투명안료 흑색">투명안료 흑색</option><option value="나노안료 흑색">나노안료 흑색</option><option value="안료백색">안료백색</option></select><div class="relative w-28"><input type="number" inputmode="decimal" placeholder="비율" class="ratio-value w-full p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg focus:bg-white focus:border-yellow-500 outline-none text-lg font-medium text-center placeholder-yellow-800/50"></div><button onclick="removeRow(this)" class="w-12 h-12 flex items-center justify-center text-red-400 active:bg-red-50 rounded-lg transition"><i data-lucide="trash-2" class="w-5 h-5"></i></button></div></div>
+                    <button onclick="addRatioRow()" class="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-blue-400 hover:text-blue-500 active:bg-gray-50 transition flex justify-center items-center gap-2 font-medium"><i data-lucide="plus" class="w-5 h-5"></i> 항목 추가</button>
+                    <button onclick="calculateRatio()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-4 rounded-xl shadow-lg transition text-lg mt-2">계산하기</button>
+                    <div id="result-ratio" class="hidden mt-4 bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 animate-slide-up"><div class="p-4 bg-slate-800 text-white flex justify-between items-center"><span class="font-medium">비율 분배 결과</span></div><div id="ratio-result-list" class="divide-y divide-gray-100"></div><div class="p-4 bg-yellow-50 flex justify-between items-center border-t border-yellow-100"><span class="text-sm font-bold text-yellow-800">총 안료량</span><span class="text-lg font-bold text-yellow-700"><span id="ratio-total-pigment">0</span> g</span></div><div class="px-4 py-2 bg-gray-50 flex justify-between items-center border-t border-gray-200"><span class="text-xs text-gray-500">최종 무게 합계</span><span class="text-sm font-bold text-gray-700"><span id="ratio-final-kg">0</span> kg</span></div></div>
+                </div>
+                <div id="ratio-corr" class="hidden space-y-5">
+                    <div class="bg-red-50 p-4 rounded-xl border border-red-100 flex items-start gap-3"><i data-lucide="palette" class="w-5 h-5 text-red-500 mt-0.5 shrink-0"></i><p class="text-sm text-red-800">현재 안료 비율과 목표 비율을 비교하여 처방합니다.</p></div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-xs font-bold text-blue-600 mb-1">현재 남은 총량 (kg)</label><div class="relative"><input type="number" id="rc-corr-total-remain" inputmode="decimal" placeholder="예: 10" class="w-full p-3 bg-blue-50 border border-blue-200 rounded-lg outline-none font-bold text-blue-900 text-lg"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-blue-400">kg</span></div></div>
+                            <div><label class="block text-xs font-bold text-gray-500 mb-1">현재 총 함유량 (%)</label><div class="relative"><input type="number" id="rc-curr-total-pct" inputmode="decimal" placeholder="1.5" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg outline-none font-semibold text-sm"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span></div></div>
+                        </div>
+                        
+                        <div class="space-y-2"><label class="block text-xs font-bold text-gray-500">현재 안료 비율</label><div id="rc-curr-ratio-list" class="space-y-2"><div class="curr-ratio-row flex gap-2 items-center"><select class="ratio-name w-1/2 p-2 bg-gray-50 border border-gray-200 rounded text-sm"><option value="" disabled selected>안료 선택</option><option value="투명안료 오렌지">투명안료 오렌지</option><option value="투명안료 적색">투명안료 적색</option><option value="투명안료 황색">투명안료 황색</option><option value="투명안료 청색">투명안료 청색</option><option value="투명안료 보라색">투명안료 보라색</option><option value="투명안료 녹색">투명안료 녹색</option><option value="투명안료 핑크색">투명안료 핑크색</option><option value="투명안료 흑색">투명안료 흑색</option><option value="나노안료 흑색">나노안료 흑색</option><option value="안료백색">안료백색</option></select><div class="relative flex-1"><input type="number" inputmode="decimal" placeholder="비율" class="curr-ratio-val w-full p-2 bg-gray-50 border border-gray-200 rounded text-sm text-right"></div><button onclick="removeRow(this)" class="text-gray-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div><button onclick="addRatioCorrRow('current')" class="w-full py-2 border border-dashed border-gray-300 rounded-lg text-xs text-gray-500 hover:text-blue-500 flex justify-center items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> 비율 추가</button></div>
+                        
+                        <div class="border-t border-gray-100 pt-4">
+                            <div class="flex items-center gap-2 mb-3"><span class="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded">Target</span><span class="text-sm font-bold text-gray-700">목표 설정</span></div>
+                            <div class="mb-3"><label class="block text-xs font-bold text-red-600 mb-1">목표 총 함유량 (%)</label><div class="relative"><input type="number" id="rc-target-total-pct" inputmode="decimal" placeholder="2.0" class="w-full p-2.5 bg-red-50 border border-red-200 rounded-lg outline-none font-semibold text-sm text-red-900"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-red-300">%</span></div></div>
+                            <div class="space-y-2"><label class="block text-xs font-bold text-red-600">목표 안료 비율</label><div id="rc-target-ratio-list" class="space-y-2"><div class="target-ratio-row flex gap-2 items-center"><select class="ratio-name w-1/2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-900"><option value="" disabled selected>안료 선택</option><option value="투명안료 오렌지">투명안료 오렌지</option><option value="투명안료 적색">투명안료 적색</option><option value="투명안료 황색">투명안료 황색</option><option value="투명안료 청색">투명안료 청색</option><option value="투명안료 보라색">투명안료 보라색</option><option value="투명안료 녹색">투명안료 녹색</option><option value="투명안료 핑크색">투명안료 핑크색</option><option value="투명안료 흑색">투명안료 흑색</option><option value="나노안료 흑색">나노안료 흑색</option><option value="안료백색">안료백색</option></select><div class="relative flex-1"><input type="number" inputmode="decimal" placeholder="비율" class="target-ratio-val w-full p-2 bg-red-50 border border-red-200 rounded text-sm text-right text-red-900 font-bold"></div><button onclick="removeRow(this)" class="text-gray-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div><button onclick="addRatioCorrRow('target')" class="w-full py-2 border border-dashed border-red-300 rounded-lg text-xs text-red-500 hover:bg-red-50 flex justify-center items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> 비율 추가</button></div>
+                        </div>
+                    </div>
+                    <button onclick="calculateAdvancedRatioCorrection()" class="w-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold py-4 rounded-xl shadow-lg transition text-lg flex justify-center items-center gap-2"><i data-lucide="flask-conical" class="w-5 h-5"></i> 수정 처방받기</button>
+                    <div id="result-ratio-adv" class="hidden mt-4 space-y-4 animate-slide-up">
+                         <div class="bg-slate-800 text-white p-4 rounded-xl shadow-lg">
+                            <h4 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1"><i data-lucide="search" class="w-3 h-3"></i> 현재 성분 분석 (추정)</h4>
+                            <div id="rc-adv-analysis-list" class="space-y-2 text-sm"></div>
+                        </div>
+                        <div class="bg-white border-2 border-green-500 p-5 rounded-xl shadow-lg relative">
+                            <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">최종 처방전</div>
+                            <div class="mt-3 space-y-3 divide-y divide-dashed divide-gray-200" id="rc-adv-prescription-list"></div>
+                             <div class="mt-4 pt-3 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500"><span>예상 최종 무게</span><span class="font-bold text-lg text-gray-800"><span id="rc-adv-final-total">0</span> kg</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="content-share" class="hidden animate-fade-in space-y-4">
+                <div class="flex justify-between items-center px-1">
+                    <h2 class="text-lg font-bold text-purple-900">차지율 (불량률)</h2>
+                </div>
+
+                <div class="bg-purple-50 p-3 rounded-lg flex items-start gap-2 text-sm text-purple-800 border border-purple-100">
+                    <i data-lucide="pie-chart" class="w-4 h-4 mt-0.5 shrink-0"></i>
+                    <p>전체 수량 대비 비중을 계산합니다.</p>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <label class="block text-sm font-bold text-gray-600 mb-1.5">총 수량 (전체 모수)</label>
+                    <div class="relative">
+                        <input type="number" id="share-total" inputmode="decimal" placeholder="예: 312" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl outline-none text-xl font-semibold transition focus:ring-2 focus:ring-purple-200 focus:border-purple-500">
+                    </div>
+                </div>
+
+                <div id="share-list" class="space-y-3">
+                    <div class="share-row bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex gap-3 items-center">
+                        <input type="text" placeholder="항목명" class="share-name flex-1 p-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-purple-500 outline-none text-base">
+                        <div class="relative w-28">
+                            <input type="number" inputmode="decimal" placeholder="개수" class="share-count w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-purple-500 outline-none text-lg font-medium text-right">
+                        </div>
+                        <button onclick="removeRow(this)" class="w-12 h-12 flex items-center justify-center text-red-400 active:bg-red-50 rounded-lg transition"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+
+                <button onclick="addShareRow()" class="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-purple-400 hover:text-purple-500 active:bg-gray-50 transition flex justify-center items-center gap-2 font-medium">
+                    <i data-lucide="plus" class="w-5 h-5"></i> 항목 추가
+                </button>
+
+                <button onclick="calculateShare()" class="w-full bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-bold py-4 rounded-xl shadow-lg transition text-lg mt-2">
+                    계산하기
+                </button>
+
+                <div id="result-share" class="hidden mt-4 bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 animate-slide-up">
+                    <div class="p-4 bg-slate-800 text-white flex justify-between items-center">
+                        <span class="font-medium">항목별 점유율</span>
+                        <span class="text-xs text-slate-400">단위: %</span>
+                    </div>
+                    <div id="share-result-list" class="divide-y divide-gray-100"></div>
+                    <div class="p-4 bg-purple-50 flex justify-between items-center border-t border-purple-100">
+                        <span class="text-sm font-bold text-purple-900">총 불량 합계</span>
+                        <span class="text-lg font-bold text-purple-700"><span id="share-total-percent">0</span>% <span class="text-sm font-normal text-gray-500">(<span id="share-total-count">0</span>개)</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="content-general" class="hidden animate-fade-in pb-10">
+                <div class="bg-gray-800 p-5 rounded-[2rem] shadow-2xl max-w-sm mx-auto flex flex-col gap-4 min-h-[500px]">
+                    <div class="bg-gray-900 rounded-3xl p-6 text-right flex-1 flex flex-col justify-end border border-gray-700"><div id="calc-prev" class="text-gray-400 text-sm h-6 font-mono"></div><div id="calc-current" class="text-white text-5xl font-light tracking-wider overflow-x-auto whitespace-nowrap scrollbar-hide">0</div></div>
+                    <div class="grid grid-cols-4 gap-3">
+                        <button onclick="calcClear()" class="calc-btn calc-top text-red-500">AC</button><button onclick="calcDelete()" class="calc-btn calc-top"><i data-lucide="delete" class="w-6 h-6"></i></button><button onclick="calcUnary('pct')" class="calc-btn calc-top">%</button><button onclick="calcOp('/')" class="calc-btn calc-op">÷</button>
+                        <button onclick="calcUnary('sqrt')" class="calc-btn calc-sci">√</button><button onclick="calcUnary('sqr')" class="calc-btn calc-sci">x²</button><button onclick="calcUnary('inv')" class="calc-btn calc-sci">1/x</button><button onclick="calcOp('*')" class="calc-btn calc-op">×</button>
+                        <button onclick="calcNum('7')" class="calc-btn calc-num text-2xl">7</button><button onclick="calcNum('8')" class="calc-btn calc-num text-2xl">8</button><button onclick="calcNum('9')" class="calc-btn calc-num text-2xl">9</button><button onclick="calcOp('-')" class="calc-btn calc-op">-</button>
+                        <button onclick="calcNum('4')" class="calc-btn calc-num text-2xl">4</button><button onclick="calcNum('5')" class="calc-btn calc-num text-2xl">5</button><button onclick="calcNum('6')" class="calc-btn calc-num text-2xl">6</button><button onclick="calcOp('+')" class="calc-btn calc-op">+</button>
+                        <button onclick="calcNum('1')" class="calc-btn calc-num text-2xl">1</button><button onclick="calcNum('2')" class="calc-btn calc-num text-2xl">2</button><button onclick="calcNum('3')" class="calc-btn calc-num text-2xl">3</button><button onclick="calcCompute()" class="calc-btn calc-eq row-span-2 h-auto rounded-3xl">=</button>
+                        <button onclick="calcUnary('neg')" class="calc-btn calc-num text-xl">+/-</button><button onclick="calcNum('0')" class="calc-btn calc-num text-2xl">0</button><button onclick="calcNum('.')" class="calc-btn calc-num text-2xl">.</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Constants & Helpers
+        const PIGMENT_OPTIONS = [
+            '투명안료 오렌지', '투명안료 적색', '투명안료 황색', '투명안료 청색', '투명안료 보라색',
+            '투명안료 녹색', '투명안료 핑크색', '투명안료 흑색', '나노안료 흑색', '안료백색'
+        ];
+
+        function getPigmentSelectHtml(className, value = '') {
+            let options = '<option value="" disabled selected>안료 선택</option>';
+            PIGMENT_OPTIONS.forEach(opt => {
+                const selected = opt === value ? 'selected' : '';
+                options += `<option value="${opt}" ${selected}>${opt}</option>`;
+            });
+            return `<select class="${className}">${options}</select>`;
+        }
+
+        // State Variables
+        let currentSubModes = { gloss: 'new', individual: 'new', ratio: 'new' };
+        let latestCalcData = null;
+        let currentInput = '0';
+        let previousInput = '';
+        let operation = undefined;
+        let shouldReset = false;
+
+        // UI Functions
+        function initIcons() { if (typeof lucide !== 'undefined') lucide.createIcons(); }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active', 'share-active'));
+            ['gloss', 'individual', 'ratio', 'share', 'general'].forEach(name => document.getElementById(`content-${name}`).classList.add('hidden'));
+            const activeBtn = document.getElementById(`tab-${tabName}`);
+            if (tabName === 'share') activeBtn.classList.add('share-active'); else activeBtn.classList.add('active');
+            document.getElementById(`content-${tabName}`).classList.remove('hidden');
+            // 스크롤 상단 이동 (window 대신 main 컨테이너 사용)
+            document.querySelector('.scroll-container').scrollTop = 0;
+        }
+
+        function switchMode(tab, mode) {
+            currentSubModes[tab] = mode;
+            const btnNew = document.getElementById(`btn-${tab}-new`);
+            const btnCorr = document.getElementById(`btn-${tab}-corr`);
+            if (mode === 'new') {
+                btnNew.classList.add('active'); btnNew.classList.remove('text-gray-500'); btnCorr.classList.remove('correction-active');
+                document.getElementById(`${tab}-new`).classList.remove('hidden'); document.getElementById(`${tab}-corr`).classList.add('hidden');
+            } else {
+                btnNew.classList.remove('active'); btnCorr.classList.add('correction-active');
+                document.getElementById(`${tab}-new`).classList.add('hidden'); document.getElementById(`${tab}-corr`).classList.remove('hidden');
+            }
+            if (tab === 'gloss') updateGlossLabel(mode);
+        }
+
+        function removeRow(btn) { btn.closest('div').remove(); }
+        
+        function addPigmentRow() {
+            const container = document.getElementById('pigment-list');
+            const div = document.createElement('div');
+            div.className = 'pigment-row bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex gap-3 items-center';
+            div.innerHTML = `${getPigmentSelectHtml('pigment-name flex-1 p-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-blue-500 outline-none text-base')}<div class="relative w-28"><input type="number" inputmode="decimal" placeholder="%" class="pigment-percent w-full p-3 pr-8 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-blue-500 outline-none text-lg font-medium text-right"><span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span></div><button onclick="removeRow(this)" class="w-12 h-12 flex items-center justify-center text-red-400 active:bg-red-50 rounded-lg transition"><i data-lucide="trash-2" class="w-5 h-5"></i></button>`;
+            container.appendChild(div);
+            initIcons();
+        }
+        
+        function addRatioRow() {
+             const container = document.getElementById('ratio-list');
+             const div = document.createElement('div');
+             div.className = 'ratio-row bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex gap-3 items-center';
+             div.innerHTML = `${getPigmentSelectHtml('ratio-name flex-1 p-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-blue-500 outline-none text-base')}<div class="relative w-24"><input type="number" inputmode="decimal" placeholder="비율" class="ratio-value w-full p-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg focus:bg-white focus:border-yellow-500 outline-none text-lg font-medium text-center placeholder-yellow-800/50"></div><button onclick="removeRow(this)" class="w-12 h-12 flex items-center justify-center text-red-400 active:bg-red-50 rounded-lg transition"><i data-lucide="trash-2" class="w-5 h-5"></i></button>`;
+             container.appendChild(div);
+             initIcons();
+        }
+        
+        function addShareRow() {
+            const container = document.getElementById('share-list');
+            const div = document.createElement('div');
+            div.className = 'share-row bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex gap-3 items-center animate-fade-in';
+            div.innerHTML = `<input type="text" placeholder="항목명" class="share-name flex-1 p-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-purple-500 outline-none text-base"><div class="relative w-28"><input type="number" inputmode="decimal" placeholder="개수" class="share-count w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:border-purple-500 outline-none text-lg font-medium text-right"></div><button onclick="removeRow(this)" class="w-12 h-12 flex items-center justify-center text-red-400 active:bg-red-50 rounded-lg transition"><i data-lucide="trash-2" class="w-5 h-5"></i></button>`;
+            container.appendChild(div);
+            initIcons();
+        }
+
+        function addIndivCorrRow(section) {
+            const listId = section === 'current' ? 'ic-curr-pigment-list' : 'ic-target-pigment-list';
+            const container = document.getElementById(listId);
+            const div = document.createElement('div');
+            div.className = `${section === 'current' ? 'curr-pig-row' : 'target-pig-row'} flex gap-2 items-center`;
+            const bgClass = section === 'current' ? 'bg-gray-50' : 'bg-red-50';
+            const borderClass = section === 'current' ? 'border-gray-200' : 'border-red-200';
+            const textClass = section === 'current' ? '' : 'text-red-900 font-bold';
+            const inputClass = section === 'current' ? 'curr-pig-val' : 'target-pig-val';
+            div.innerHTML = `${getPigmentSelectHtml(`pigment-name w-1/2 p-2 ${bgClass} border ${borderClass} rounded text-sm ${textClass}`)}<div class="relative flex-1"><input type="number" inputmode="decimal" placeholder="%" class="${inputClass} w-full p-2 ${bgClass} border ${borderClass} rounded text-sm text-right ${textClass}"></div><button onclick="removeRow(this)" class="text-gray-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+            container.appendChild(div);
+            initIcons();
+        }
+
+        function addRatioCorrRow(section) {
+            const listId = section === 'current' ? 'rc-curr-ratio-list' : 'rc-target-ratio-list';
+            const container = document.getElementById(listId);
+            const div = document.createElement('div');
+            div.className = `${section === 'current' ? 'curr-ratio-row' : 'target-ratio-row'} flex gap-2 items-center`;
+            const bgClass = section === 'current' ? 'bg-gray-50' : 'bg-red-50';
+            const borderClass = section === 'current' ? 'border-gray-200' : 'border-red-200';
+            const textClass = section === 'current' ? '' : 'text-red-900 font-bold';
+            const inputClass = section === 'current' ? 'curr-ratio-val' : 'target-ratio-val';
+            div.innerHTML = `${getPigmentSelectHtml(`ratio-name w-1/2 p-2 ${bgClass} border ${borderClass} rounded text-sm ${textClass}`)}<div class="relative flex-1"><input type="number" inputmode="decimal" placeholder="비율" class="${inputClass} w-full p-2 ${bgClass} border ${borderClass} rounded text-sm text-right ${textClass}"></div><button onclick="removeRow(this)" class="text-gray-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+            container.appendChild(div);
+            initIcons();
+        }
+
+        function toggleIndivType() {
+            const type = document.querySelector('input[name="indivType"]:checked').value;
+            const dilutionInput = document.getElementById('indiv-dilution-input');
+            if (type === 'dilution') dilutionInput.classList.remove('hidden'); else dilutionInput.classList.add('hidden');
+        }
+
+        function toggleIndivTypeCorr() {
+            const type = document.querySelector('input[name="indivTypeCorr"]:checked').value;
+            const dilutionInputCurr = document.getElementById('ic-corr-dilution-input');
+            const dilutionInputTarget = document.getElementById('ic-target-dilution-input');
+            if (type === 'dilution') {
+                dilutionInputCurr.classList.remove('hidden');
+                dilutionInputTarget.classList.remove('hidden');
+            } else {
+                dilutionInputCurr.classList.add('hidden');
+                dilutionInputTarget.classList.add('hidden');
+            }
+        }
+
+        // Calculation Logic
+        function updateGlossLabel(mode) {
+            if (mode === 'new') {
+                const base = document.querySelector('input[name="baseType"]:checked').value;
+                const add = document.querySelector('input[name="addType"]:checked').value;
+                document.getElementById('label-base-weight').innerText = `${base} 무게`;
+                document.getElementById('gloss-percent-label').innerText = `${add} 비율`;
+                document.getElementById('label-result-add').innerText = `넣어야 할 ${add}`;
+            } else {
+                const add = document.querySelector('input[name="addTypeCorr"]:checked').value;
+                document.getElementById('gc-current-label').innerText = `현재 ${add} 비율`;
+                document.getElementById('gc-target-label').innerText = `목표 ${add} 비율`;
+            }
+        }
+
+        function calculateGloss() {
+            const baseKg = parseFloat(document.getElementById('gloss-base').value) || 0;
+            const percent = parseFloat(document.getElementById('gloss-percent').value) || 0;
+            if (baseKg <= 0) { alert('무게를 입력해주세요.'); return; }
+            const baseG = baseKg * 1000;
+            const additiveG = baseG * (percent / 100);
+            const totalKg = (baseG + additiveG) / 1000;
+            document.getElementById('gloss-result-g').innerText = additiveG.toLocaleString(undefined, { maximumFractionDigits: 1 });
+            document.getElementById('gloss-total-kg').innerText = totalKg.toLocaleString(undefined, { maximumFractionDigits: 3 });
+            document.getElementById('result-gloss').classList.remove('hidden');
+        }
+
+        function calculateGlossCorrection() {
+            const totalKg = parseFloat(document.getElementById('gc-total-kg').value) || 0;
+            const currentPct = parseFloat(document.getElementById('gc-current-pct').value) || 0;
+            const targetPct = parseFloat(document.getElementById('gc-target-pct').value);
+            const base = document.querySelector('input[name="baseTypeCorr"]:checked').value;
+            const add = document.querySelector('input[name="addTypeCorr"]:checked').value;
+            if (totalKg <= 0) { alert('현재 총 무게를 입력해주세요.'); return; }
+            if (isNaN(targetPct)) { alert('목표 비율을 입력해주세요.'); return; }
+            const totalG = totalKg * 1000;
+            const baseG = totalG / (1 + (currentPct / 100));
+            const currentAdditiveG = totalG - baseG;
+            const targetAdditiveG = baseG * (targetPct / 100);
+            if (targetAdditiveG > currentAdditiveG) {
+                const addAmount = targetAdditiveG - currentAdditiveG;
+                document.getElementById('gc-res-name').innerText = add;
+                document.getElementById('gc-res-name').className = "text-green-600";
+                document.getElementById('gc-res-amount').innerText = addAmount.toLocaleString(undefined, { maximumFractionDigits: 1 });
+                document.getElementById('gc-res-total').innerText = ((totalG + addAmount)/1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
+            } else {
+                if (targetPct === 0) { alert('0%로 만들려면 다시 배합해야 합니다.'); return; }
+                const neededTotalBase = currentAdditiveG / (targetPct / 100);
+                const addBase = neededTotalBase - baseG;
+                document.getElementById('gc-res-name').innerText = base;
+                document.getElementById('gc-res-name').className = "text-blue-600";
+                document.getElementById('gc-res-amount').innerText = addBase.toLocaleString(undefined, { maximumFractionDigits: 1 });
+                document.getElementById('gc-res-total').innerText = ((totalG + addBase)/1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
+            }
+            document.getElementById('result-gloss-corr').classList.remove('hidden');
+        }
+
+        function calculateIndividual() {
+            const baseKg = parseFloat(document.getElementById('indiv-base').value) || 0;
+            if (baseKg <= 0) { alert('기준 무게를 입력해주세요.'); return; }
+            const type = document.querySelector('input[name="indivType"]:checked').value;
+            let calculationBaseKg = baseKg; let thinnerKg = 0;
+            const mixInfo = document.getElementById('indiv-mix-info');
+            if (type === 'dilution') {
+                const ratio = parseFloat(document.getElementById('indiv-thinner-ratio').value) || 0;
+                if (ratio <= 0) { alert('희석 비율을 입력해주세요.'); return; }
+                thinnerKg = baseKg * ratio; calculationBaseKg = baseKg + thinnerKg;
+                document.getElementById('res-base-kg').innerText = baseKg.toLocaleString() + ' kg';
+                document.getElementById('res-thinner-kg').innerText = thinnerKg.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' kg';
+                document.getElementById('res-mix-total-kg').innerText = calculationBaseKg.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' kg';
+                mixInfo.classList.remove('hidden');
+            } else { mixInfo.classList.add('hidden'); }
+            const calcBaseG = calculationBaseKg * 1000; let totalPigmentG = 0;
+            const resultList = document.getElementById('indiv-result-list'); resultList.innerHTML = '';
+            document.querySelectorAll('.pigment-row').forEach(row => {
+                const name = row.querySelector('.pigment-name').value || '안료'; const percent = parseFloat(row.querySelector('.pigment-percent').value) || 0;
+                const amountG = calcBaseG * (percent / 100); totalPigmentG += amountG;
+                const div = document.createElement('div'); div.className = 'flex justify-between items-center p-4 hover:bg-gray-50';
+                div.innerHTML = `<div class="flex flex-col"><span class="text-gray-800 font-medium">${name}</span><span class="text-xs text-gray-400">(${percent}%)</span></div><span class="text-lg font-bold text-blue-600">${amountG.toLocaleString(undefined, { maximumFractionDigits: 2 })} g</span>`;
+                resultList.appendChild(div);
+            });
+            const finalTotalKg = (calcBaseG + totalPigmentG) / 1000;
+            document.getElementById('indiv-final-total-kg').innerText = finalTotalKg.toLocaleString(undefined, { maximumFractionDigits: 3 }) + ' kg';
+            document.getElementById('result-indiv').classList.remove('hidden');
+        }
+
+        function calculateRatio() {
+            const baseKg = parseFloat(document.getElementById('ratio-base').value) || 0;
+            const totalPercent = parseFloat(document.getElementById('ratio-total-percent').value) || 0;
+            if (baseKg <= 0 || totalPercent <= 0) { alert('무게와 함유량을 입력해주세요.'); return; }
+            const baseG = baseKg * 1000;
+            const totalPigmentG = baseG * (totalPercent / 100);
+            let totalParts = 0;
+            document.querySelectorAll('.ratio-row').forEach(row => totalParts += parseFloat(row.querySelector('.ratio-value').value) || 0);
+            if (totalParts === 0) { alert('비율을 입력해주세요.'); return; }
+            const resultList = document.getElementById('ratio-result-list'); resultList.innerHTML = '';
+            document.querySelectorAll('.ratio-row').forEach(row => {
+                const name = row.querySelector('.ratio-name').value || '안료';
+                const part = parseFloat(row.querySelector('.ratio-value').value) || 0;
+                const amountG = totalPigmentG * (part / totalParts);
+                const div = document.createElement('div'); div.className = 'flex justify-between items-center p-4 hover:bg-gray-50';
+                div.innerHTML = `<div class="flex flex-col"><span class="text-gray-800 font-medium">${name}</span><span class="text-xs text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded w-max mt-0.5">비율 ${part}</span></div><span class="text-lg font-bold text-gray-800">${amountG.toLocaleString(undefined, { maximumFractionDigits: 2 })} g</span>`;
+                resultList.appendChild(div);
+            });
+            document.getElementById('ratio-total-pigment').innerText = totalPigmentG.toLocaleString(undefined, { maximumFractionDigits: 1 });
+            document.getElementById('ratio-final-kg').innerText = ((baseG + totalPigmentG) / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 });
+            document.getElementById('result-ratio').classList.remove('hidden');
+        }
+
+        function calculateShare() {
+            const total = parseFloat(document.getElementById('share-total').value) || 0;
+            if (total <= 0) { alert('총 수량을 입력해주세요.'); return; }
+            let totalDefects = 0;
+            const resultList = document.getElementById('share-result-list'); resultList.innerHTML = '';
+            const rows = document.querySelectorAll('.share-row');
+            if (rows.length === 0) { alert('항목을 하나 이상 추가해주세요.'); return; }
+            rows.forEach(row => {
+                const name = row.querySelector('.share-name').value || '항목';
+                const count = parseFloat(row.querySelector('.share-count').value) || 0;
+                const percent = (count / total) * 100;
+                totalDefects += count;
+                const div = document.createElement('div'); div.className = 'flex justify-between items-center p-4 hover:bg-gray-50';
+                div.innerHTML = `<div class="flex flex-col"><span class="text-gray-800 font-medium">${name}</span><span class="text-xs text-gray-500">${count}개</span></div><span class="text-lg font-bold text-purple-600">${percent.toLocaleString(undefined, { maximumFractionDigits: 2 })}%</span>`;
+                resultList.appendChild(div);
+            });
+            const totalPercent = (totalDefects / total) * 100;
+            document.getElementById('share-total-count').innerText = totalDefects.toLocaleString();
+            document.getElementById('share-total-percent').innerText = totalPercent.toLocaleString(undefined, { maximumFractionDigits: 2 });
+            document.getElementById('result-share').classList.remove('hidden');
+        }
+
+        function calculateAdvancedIndivCorrection() {
+             const totalRemain = parseFloat(document.getElementById('ic-corr-total-remain').value);
+             if (!totalRemain || totalRemain <= 0) { alert('현재 남은 총량을 입력해주세요.'); return; }
+             const mode = document.querySelector('input[name="indivTypeCorr"]:checked').value;
+             let currThinner = 0; let targetThinner = 0;
+             if (mode === 'dilution') {
+                 currThinner = parseFloat(document.getElementById('ic-corr-thinner-ratio-curr').value);
+                 targetThinner = parseFloat(document.getElementById('ic-corr-thinner-ratio-target').value);
+                 if (isNaN(currThinner)) { alert('현재 신나 비율을 입력해주세요.'); return; }
+                 if (isNaN(targetThinner)) { alert('목표 신나 비율을 입력해주세요.'); return; }
+             }
+             const currPigments = []; let currPigmentRatioSum = 0;
+             document.querySelectorAll('.curr-pig-row').forEach((row, idx) => {
+                 let nameVal = row.querySelector('.pigment-name').value.trim();
+                 if (!nameVal) nameVal = `안료 ${idx + 1}`; 
+                 const pct = parseFloat(row.querySelector('.curr-pig-val').value) || 0;
+                 currPigments.push({ name: nameVal, ratio: pct });
+                 currPigmentRatioSum += pct;
+             });
+             const currPigmentPercentSum = currPigmentRatioSum;
+             const currThinnerRatio = currThinner; 
+             const totalG = totalRemain * 1000;
+             const currentBaseMass = totalG / ( (1 + currThinnerRatio) * (1 + currPigmentPercentSum / 100) );
+             const currentThinnerMass = currentBaseMass * currThinnerRatio;
+             const currentBinderMass = currentBaseMass + currentThinnerMass;
+             const currentMassMap = {};
+             currPigments.forEach(p => { currentMassMap[p.name] = currentBinderMass * (p.ratio / 100); });
+             const targetPigments = [];
+             document.querySelectorAll('.target-pig-row').forEach((row, idx) => {
+                 let nameVal = row.querySelector('.pigment-name').value.trim();
+                 if (!nameVal) nameVal = `안료 ${idx + 1}`;
+                 const pct = parseFloat(row.querySelector('.target-pig-val').value) || 0;
+                 targetPigments.push({ name: nameVal, ratio: pct });
+             });
+             if (targetPigments.length === 0) { alert('목표 안료를 하나 이상 설정해주세요.'); return; }
+             let reqBase = currentBaseMass; 
+             const targetThinnerRatio = targetThinner;
+             if (targetThinnerRatio > 0) {
+                  const reqFromThinner = currentThinnerMass / targetThinnerRatio;
+                  if (reqFromThinner > reqBase) reqBase = reqFromThinner;
+             }
+             const targetBinderFactor = 1 + targetThinnerRatio;
+             targetPigments.forEach(p => {
+                 const currM = currentMassMap[p.name] || 0;
+                 if (p.ratio > 0) {
+                      const req = currM / (targetBinderFactor * (p.ratio / 100));
+                      if (req > reqBase) reqBase = req;
+                 }
+             });
+             const finalBaseMass = reqBase;
+             const finalThinnerMass = finalBaseMass * targetThinnerRatio;
+             const finalBinderMass = finalBaseMass + finalThinnerMass;
+             const addBase = Math.max(0, finalBaseMass - currentBaseMass);
+             const addThinner = Math.max(0, finalThinnerMass - currentThinnerMass);
+             const prescription = [];
+             const pigmentDetails = [];
+             const allPigmentNames = new Set([...currPigments.map(p=>p.name), ...targetPigments.map(p=>p.name)]);
+             allPigmentNames.forEach(name => {
+                 const currM = currentMassMap[name] || 0;
+                 const targetP = targetPigments.find(tp => tp.name === name);
+                 const targetPct = targetP ? targetP.ratio : 0;
+                 const targetM = finalBinderMass * (targetPct / 100);
+                 const finalM = Math.max(currM, targetM);
+                 const add = Math.max(0, finalM - currM);
+                 pigmentDetails.push({ name: name, curr: currM, target: finalM, add: add });
+                 if (add > 0.01) { prescription.push({ name: name, add: add }); }
+             });
+             const totalTargetMass = finalBaseMass + finalThinnerMass + pigmentDetails.reduce((acc, p) => acc + p.target, 0);
+             const analysisList = document.getElementById('ic-adv-analysis-list');
+             let analysisHtml = `<div class="flex justify-between"><span class="text-gray-300">주제(Base)</span><span>${currentBaseMass.toLocaleString(undefined, {maximumFractionDigits:1})} g</span></div>`;
+             if (mode === 'dilution') {
+                 analysisHtml += `<div class="flex justify-between text-red-200"><span>신나 (비율 ${currThinner})</span><span>${currentThinnerMass.toLocaleString(undefined, {maximumFractionDigits:1})} g</span></div>`;
+             }
+             analysisHtml += currPigments.map(p => `<div class="flex justify-between text-blue-300"><span>${p.name} (${p.ratio}%)</span><span>${(currentMassMap[p.name]).toLocaleString(undefined, {maximumFractionDigits:1})} g</span></div>`).join('');
+             analysisHtml += `<div class="border-t border-slate-600 pt-1 mt-1 flex justify-between font-bold"><span>총 합계</span><span>${(totalRemain * 1000).toLocaleString()} g</span></div>`;
+             analysisList.innerHTML = analysisHtml;
+             const presList = document.getElementById('ic-adv-prescription-list');
+             presList.innerHTML = '';
+             if (addBase > 0.5) {
+                 presList.innerHTML += `<div class="flex justify-between items-center border-b border-dashed border-gray-200 pb-2"><span class="text-gray-700 font-medium">주제(Base) 추가</span><span class="text-xl font-bold text-blue-600">+${addBase.toLocaleString(undefined, {maximumFractionDigits:1})}<span class="text-xs text-gray-400 ml-1">g</span></span></div>`;
+             }
+             if (mode === 'dilution' && addThinner > 0.5) {
+                  presList.innerHTML += `<div class="flex justify-between items-center border-b border-dashed border-gray-200 pb-2"><span class="text-gray-700 font-medium">신나 추가</span><span class="text-xl font-bold text-red-600">+${addThinner.toLocaleString(undefined, {maximumFractionDigits:1})}<span class="text-xs text-gray-400 ml-1">g</span></span></div>`;
+             }
+             prescription.forEach(p => {
+                 presList.innerHTML += `<div class="flex justify-between items-center py-2 border-t border-dashed border-gray-200"><span class="text-gray-700 font-medium">${p.name} 추가</span><span class="text-xl font-bold text-green-600">+${p.add.toLocaleString(undefined, {maximumFractionDigits:1})}<span class="text-xs text-gray-400 ml-1">g</span></span></div>`;
+             });
+             if (addBase <= 0.5 && addThinner <= 0.5 && prescription.length === 0) {
+                  presList.innerHTML = `<div class="text-center text-gray-500 py-2">현재 배합이 목표와 일치합니다.</div>`;
+             }
+             document.getElementById('ic-final-weight').innerText = (totalTargetMass / 1000).toLocaleString(undefined, {maximumFractionDigits:3});
+             document.getElementById('result-indiv-corr').classList.remove('hidden');
+        }
+
+        function calculateAdvancedRatioCorrection() {
+            const totalRemain = parseFloat(document.getElementById('rc-corr-total-remain').value);
+            const currTotalPct = parseFloat(document.getElementById('rc-curr-total-pct').value);
+            if (!totalRemain || totalRemain <= 0) { alert('현재 남은 총량을 입력해주세요.'); return; }
+            if (isNaN(currTotalPct)) { alert('현재 총 함유량(%)을 입력해주세요.'); return; }
+            const currentBaseMass = (totalRemain * 1000) / (1 + (currTotalPct / 100));
+            const currentMixMass = (totalRemain * 1000) - currentBaseMass;
+            let currRatioSum = 0; const currRatios = [];
+            document.querySelectorAll('.curr-ratio-row').forEach((row, idx) => {
+                let nameVal = row.querySelector('.ratio-name').value.trim();
+                if (!nameVal) nameVal = `안료 ${idx + 1}`;
+                const ratio = parseFloat(row.querySelector('.curr-ratio-val').value) || 0;
+                currRatios.push({ name: nameVal, ratio: ratio });
+                currRatioSum += ratio;
+            });
+            const currentMassMap = {};
+            if (currRatioSum > 0) { currRatios.forEach(p => { currentMassMap[p.name] = currentMixMass * (p.ratio / currRatioSum); }); }
+            const targetTotalPct = parseFloat(document.getElementById('rc-target-total-pct').value);
+            if (isNaN(targetTotalPct)) { alert('목표 총 함유량(%)을 입력해주세요.'); return; }
+            let targetRatioSum = 0; const targetRatios = [];
+            document.querySelectorAll('.target-ratio-row').forEach((row, idx) => {
+                let nameVal = row.querySelector('.ratio-name').value.trim();
+                if (!nameVal) nameVal = `안료 ${idx + 1}`;
+                const ratio = parseFloat(row.querySelector('.target-ratio-val').value) || 0;
+                targetRatios.push({ name: nameVal, ratio: ratio });
+                targetRatioSum += ratio;
+            });
+            if (targetRatios.length === 0 || targetRatioSum === 0) { alert('목표 비율을 설정해주세요.'); return; }
+            let requiredBaseMass = currentBaseMass;
+            const targetPctFactor = targetTotalPct / 100;
+            targetRatios.forEach(p => {
+                const currM = currentMassMap[p.name] || 0;
+                const ratioFactor = p.ratio / targetRatioSum;
+                if (targetPctFactor > 0 && ratioFactor > 0) {
+                    const req = currM / (targetPctFactor * ratioFactor);
+                    if (req > requiredBaseMass) requiredBaseMass = req;
+                }
+            });
+            const finalBaseMass = requiredBaseMass;
+            const finalMixMass = finalBaseMass * targetPctFactor;
+            const addBase = finalBaseMass - currentBaseMass;
+            const prescription = []; const pigmentDetails = [];
+            const allNames = new Set([...currRatios.map(p=>p.name), ...targetRatios.map(p=>p.name)]);
+            allNames.forEach(name => {
+                const currM = currentMassMap[name] || 0;
+                const targetP = targetRatios.find(tp => tp.name === name);
+                let targetM = 0;
+                if (targetP) { targetM = finalMixMass * (targetP.ratio / targetRatioSum); }
+                const finalM = Math.max(currM, targetM);
+                const add = Math.max(0, finalM - currM);
+                pigmentDetails.push({ name: name, curr: currM, target: finalM, add: add });
+                if (add > 0.01) { prescription.push({ name: name, add: add, curr: currM, target: finalM }); }
+            });
+            const totalTargetMass = finalBaseMass + pigmentDetails.reduce((acc, p) => acc + p.target, 0);
+            const analysisList = document.getElementById('rc-adv-analysis-list');
+            analysisList.innerHTML = `<div class="flex justify-between"><span class="text-gray-300">주제(Base)</span><span>${currentBaseMass.toLocaleString(undefined, {maximumFractionDigits:1})} g</span></div><div class="flex justify-between text-blue-300"><span>총 안료 (${currTotalPct}%)</span><span>${currentMixMass.toLocaleString(undefined, {maximumFractionDigits:1})} g</span></div>${currRatios.map(p => `<div class="flex justify-between text-gray-400 pl-2 text-xs"><span>- ${p.name}</span><span>${(currentMassMap[p.name]||0).toLocaleString(undefined, {maximumFractionDigits:1})} g</span></div>`).join('')}<div class="border-t border-slate-600 pt-1 mt-1 flex justify-between font-bold"><span>총 합계</span><span>${(totalRemain * 1000).toLocaleString()} g</span></div>`;
+            const presList = document.getElementById('rc-adv-prescription-list');
+            presList.innerHTML = '';
+            if (addBase > 0.5) {
+                presList.innerHTML += `<div class="flex justify-between items-center pb-2"><span class="text-gray-700 font-medium">주제(Base) 추가</span><div class="text-right"><span class="block text-xs text-gray-400 strike">현재 ${(currentBaseMass).toFixed(0)}g</span><span class="text-xl font-bold text-blue-600">+${addBase.toLocaleString(undefined, {maximumFractionDigits:1})}<span class="text-xs text-gray-400 ml-1">g</span></span></div></div>`;
+            }
+            prescription.forEach(p => {
+                presList.innerHTML += `<div class="flex justify-between items-center py-2 border-t border-dashed border-gray-200"><span class="text-gray-700 font-medium">${p.name} 추가</span><div class="text-right"><span class="block text-xs text-gray-400">현재 ${p.curr.toFixed(1)}g → 목표 ${p.target.toFixed(1)}g</span><span class="text-xl font-bold text-green-600">+${p.add.toLocaleString(undefined, {maximumFractionDigits:1})}<span class="text-xs text-gray-400 ml-1">g</span></span></div></div>`;
+            });
+             if (addBase <= 0.5 && prescription.length === 0) {
+                 presList.innerHTML = `<div class="text-center text-gray-500 py-2">현재 배합이 목표와 일치합니다.</div>`;
+            }
+            document.getElementById('rc-adv-final-total').innerText = (totalTargetMass / 1000).toLocaleString(undefined, {maximumFractionDigits:3});
+            document.getElementById('result-ratio-adv').classList.remove('hidden');
+        }
+        
+        // Calculator Functions
+        function calcUpdateDisplay() { const parts = currentInput.split('.'); parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ","); document.getElementById('calc-current').innerText = parts.join('.'); document.getElementById('calc-prev').innerText = operation ? `${previousInput} ${operation}` : ''; }
+        function calcNum(n) { if(shouldReset){currentInput=''; shouldReset=false;} if(n==='.'&&currentInput.includes('.'))return; if(currentInput==='0'&&n!=='.')currentInput=n;else currentInput+=n; if(currentInput.length>12)currentInput=currentInput.substring(0,12); calcUpdateDisplay();}
+        function calcOp(op) { if(currentInput==='')return; if(previousInput!=='' && !shouldReset)calcCompute(); operation=op; previousInput=currentInput; shouldReset=true; calcUpdateDisplay();}
+        function calcCompute() { if(!operation || !previousInput)return; const p=parseFloat(previousInput); const c=parseFloat(currentInput); let r; switch(operation){case '+':r=p+c;break;case '-':r=p-c;break;case '*':r=p*c;break;case '/':r=p/c;break;} currentInput=parseFloat(r.toFixed(8)).toString(); operation=undefined; previousInput=''; shouldReset=true; calcUpdateDisplay();}
+        function calcClear() { currentInput='0'; previousInput=''; operation=undefined; calcUpdateDisplay();}
+        function calcDelete() { if(shouldReset)return; currentInput=currentInput.slice(0,-1); if(currentInput==='')currentInput='0'; calcUpdateDisplay();}
+        function calcUnary(type) { let c=parseFloat(currentInput); if(isNaN(c))return; switch(type){case 'sqrt':c=Math.sqrt(c);break;case 'sqr':c=c*c;break;case 'inv':c=1/c;break;case 'neg':c=-c;break;case 'pct':c=c/100;break;} currentInput=parseFloat(c.toFixed(8)).toString(); shouldReset=true; calcUpdateDisplay();}
+
+        // 페이지 로딩 시 초기화 (AC 자동 누름 효과)
+        document.addEventListener('DOMContentLoaded', () => { 
+            initIcons(); 
+            updateGlossLabel('new'); 
+            updateGlossLabel('corr'); 
+            calcClear(); // <--- 이 부분 추가로 버그 해결
+        });
+
+        // PWA: 서비스워커 등록 (오프라인 지원)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW 등록 실패', e));
+            });
+        }
+    </script>
+</body>
+</html>
