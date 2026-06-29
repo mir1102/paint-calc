@@ -1,6 +1,6 @@
 // 도료계산기 서비스워커 — 오프라인 캐싱 + 자동 업데이트
 // 아래 CACHE 버전은 deploy.sh가 배포할 때마다 자동으로 갱신함 (수정 금지 권장)
-const CACHE = 'paint-calc-20260629151142';
+const CACHE = 'paint-calc-20260629152338';
 const ASSETS = [
   './',
   './index.html',
